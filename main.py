@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi import Request
+from typing import List
 from pydantic import BaseModel
 #import uvicorn
 
@@ -10,13 +11,13 @@ class JobResult(BaseModel):
 
 app = FastAPI()
 
-@app.get("/job")
-async def job():
+def _job(next: str):
+    print(next)
     return {
         "job": [
             {
                 "jobid": "123-1",
-                "command": "fping --help",
+                "command": "fping -g 8.8.8.5 8.8.8.10 -r 2 -a -q",
             },
             {
                 "jobid": "123-2",
@@ -32,13 +33,19 @@ async def job():
         "status": 200
     }
 
+@app.get("/job")
+async def job(next: str | None = None):
+    return _job(next=next)
+
 @app.post("/job")
-async def postjob(request: Request): #jobRet: JobResult
-    print(request)
+async def postjob(jobRet: List[JobResult], next: str | None = None): #jobRet: JobResult
+    for i, job in enumerate(jobRet):
+        print(job.jobid, job.stdout, job.stderr)
+    #print(request)
     #jobResult = jobRet.dict()
-    jobResult = await request.json()
-    print(jobResult)
-    return job()
+    #jobResult = await request.json()
+    #print(jobResult)
+    return _job(next=next)
 
 #if __name__ == "__main__":
 #    uvicorn.run(app, host="0.0.0.0", port=8080)
