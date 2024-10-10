@@ -5,6 +5,7 @@ import hashlib
 import os
 import json
 import copy
+import iso3166
 
 def ip_range_to_cidr(start_ip, end_ip):
     start = ipaddress.IPv4Address(start_ip)
@@ -54,7 +55,7 @@ def build_sql(alltable:dict):
 
 def parse_file(filename:str, alltable:dict):
     update_cache = {}
-    with open(filename, 'r') as file:
+    with open(filename, 'r', encoding='utf-8-sig') as file:
         # 创建一个CSV阅读器对象
         reader = csv.DictReader(file)
         support_formats = {
@@ -100,7 +101,7 @@ def parse_file(filename:str, alltable:dict):
                 select_format = item
                 break
         if select_format == '':
-            print('Not Support file with columns:', reader.fieldnames)
+            print(f'Not support file {filename} with columns:{reader.fieldnames}')
             exit(1)
         print(f'# Parse file {filename} \n#   format: {select_format}, columns: {support_formats[select_format]}\n')
 
@@ -118,9 +119,9 @@ def parse_file(filename:str, alltable:dict):
                         update_cache['country'] = {}
                     update_cache['country'][row['country']] = {
                         'code': row['country'].upper(),
-                        'name': row['country_name'],
+                        'name': row['country_name'].replace("'", ''),
                         'continent_code': row['continent'],
-                        'continent_name': row['continent_name']
+                        'continent_name': row['continent_name'].replace("'", '')
                     }
                 # city表处理
                 cityid = get_cityid(row['asnno'], row['country'], row['city'])
@@ -131,8 +132,8 @@ def parse_file(filename:str, alltable:dict):
                             'id': cityid,
                             'asn': row['asnno'],
                             'country_code': row['country'].upper(),
-                            'name': row['city'],
-                            'region': row['region'],
+                            'name': row['city'].replace("'", ''),
+                            'region': row['region'].replace("'", ''),
                             'latitude': float(row['latitude']) if row['latitude'] != '' else 0.0,
                             'longitude': float(row['longitude']) if row['longitude'] != '' else 0.0
                     }
@@ -147,7 +148,44 @@ def parse_file(filename:str, alltable:dict):
                     }
             print(f'# Total skip empty asn lines:{skipasn}\n')
         elif select_format == 'countryfile':
-            pass
+            for row in reader:
+                if not row['ASN'].upper().startswith('AS'):
+                    #print('# Skip unknown asn line:', row)
+                    skipasn+=1
+                    continue
+                row['asnno'] = int(row['ASN'][2:])
+                # asn表处理
+                if str(row['asnno']) not in alltable['asn']:
+                    if 'asn' not in update_cache:
+                        update_cache['asn'] = {}
+                    country_code = ''
+                    # https://zh.wikipedia.org/wiki/ISO_3166-1
+                    hard_code_mapping = {
+                        'Aland Islands': 'AX', 'Brunei': 'BN', 'Democratic Republic of the Congo': 'CD',
+                        'Iran': 'IR', 'Ivory Coast': 'CI', 'Laos': 'LA', 'Moldova': 'MD',
+                        'Palestinian Territory': 'PS', 'Republic of the Congo': 'CG', 'Reunion': 'RE', 'Russia': 'RU',
+                        'South Korea': 'KR', 'Syria': 'SY', 'Taiwan': 'TW', 'Tanzania': 'TZ', 'Turkey': 'TR',
+                        'United Kingdom': 'GB', 'Vatican': 'VA', 'Vietnam': 'VN',
+                    }
+                    if row['Country'] in hard_code_mapping:
+                        country_code = hard_code_mapping[row['Country']]
+                    elif row['Country'].upper() in iso3166.countries_by_name:
+                        country_code = iso3166.countries_by_name[row['Country'].upper()].alpha2
+                    else:
+                        print(f'# Warning: can not found country code in iso3166 {row}\n')
+                        exit(1)
+                        #for _, (key, value) in enumerate(alltable['country'].items()):
+                        #    if value['name'] == row['Country']:
+                        #        country_code = value['code']
+                        #        break
+                    update_cache['asn'][str(row['asnno'])] = {
+                        'asn': row['asnno'],
+                        'country_code': country_code,
+                        'type': row['Type\xa0ISP'],
+                        'ipcounts': int(row['Number of IPs'].replace(',', '').replace(' ','')),
+                        'name': row['ISP Name'].replace("'", ''),
+                        'domain': '',
+                    }
     return update_cache
 
 parser = argparse.ArgumentParser()
@@ -170,7 +208,8 @@ else:
 global_cache = {
     'country': {},
     'city': {},
-    'iprange': {}
+    'iprange': {},
+    'asn': {}
 }
 try:
     with open(settings_file, 'r') as f:
