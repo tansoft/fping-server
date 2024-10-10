@@ -30,7 +30,7 @@ CREATE TABLE `city` (
     UNIQUE KEY `citykey` (`asn`, `country_code`, `name`),
     KEY `asn` (`asn`),
     KEY `country_code` (`country_code`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '城市基本信息'
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '城市基本信息';
 
 CREATE TABLE `iprange` (
     `start_ip` INT UNSIGNED NOT NULL COMMENT 'IP段开始',
