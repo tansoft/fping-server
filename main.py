@@ -8,6 +8,7 @@ class JobResult(BaseModel):
     jobid: str
     stdout: str
     stderr: str
+    status: int
 
 app = FastAPI()
 
@@ -40,7 +41,7 @@ async def job(next: str | None = None):
 @app.post("/job")
 async def postjob(jobRet: List[JobResult], next: str | None = None): #jobRet: JobResult
     for i, job in enumerate(jobRet):
-        print(job.jobid, job.stdout, job.stderr)
+        print(job.jobid, job.stdout, job.stderr, job.status)
     #print(request)
     #jobResult = jobRet.dict()
     #jobResult = await request.json()
